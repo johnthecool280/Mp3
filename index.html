@@ -487,7 +487,7 @@ body{background:transparent!important}
       <div class="cvt"><b>Cover art</b><span id="cvs">Optional. Shows in your music player.</span></div>
       <button class="btn soft hide" id="cvx">Remove</button>
     </div>
-    <button class="btn wide" id="go">Convert to MP3</button>
+    <button class="btn wide" id="go">Convert</button>
     <div class="bar hide" id="bar"><i id="bi"></i></div>
     <p id="st" role="status"></p>
     <div id="rs" class="hide">
@@ -555,7 +555,10 @@ function apply(){
 document.querySelectorAll('.seg button').forEach(function(b){b.onclick=function(){
   var p=PRE[b.dataset.p];$('bass').value=p[0];$('clar').value=p[1];$('loud').value=p[2];
   document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});apply()}});
-(function(){var b=$('ehb'),e=$('ebody');b.onclick=function(){var o=!e.classList.contains('open');e.classList.toggle('open',o);b.setAttribute('aria-expanded',o)}})();
+(function(){var b=$('ehb'),e=$('ebody'),K='vtm-enhance-open';
+function set(o){e.classList.toggle('open',o);b.setAttribute('aria-expanded',o)}
+try{if(localStorage.getItem(K)==='0'){e.style.transition='none';set(false);void e.offsetHeight;e.style.transition=''}}catch(x){}
+b.onclick=function(){var o=!e.classList.contains('open');set(o);try{localStorage.setItem(K,o?'1':'0')}catch(x){}}})();
 $('ab').onclick=function(){bypass=!bypass;$('ab').setAttribute('aria-pressed',bypass);$('ab').textContent=bypass?'Enhanced':'Original';apply()};
 $('ab').textContent='Original';
 
@@ -603,7 +606,7 @@ v.onended=function(){ui(false);if(exporting&&N.rec&&N.rec.state==='recording')N.
 
 var cur=null,mp3=null;
 function bar(p){$('bi').style.width=p+'%'}
-function lock(on){$('go').disabled=$('pl').disabled=$('sk').disabled=on;$('go').textContent=on?'Converting…':'Convert to MP3';$('bar').classList.toggle('hide',!on)}
+function lock(on){$('go').disabled=$('pl').disabled=$('sk').disabled=on;$('go').textContent=on?'Converting…':'Convert';$('bar').classList.toggle('hide',!on)}
 function dec(ab){return new Promise(function(ok,no){var p=ac.decodeAudioData(ab,ok,no);if(p&&p.catch)p.catch(no)})}
 function render(buf){
   var OC=window.OfflineAudioContext||window.webkitOfflineAudioContext,oc=new OC(Math.min(2,buf.numberOfChannels),buf.length,buf.sampleRate),src=oc.createBufferSource();src.buffer=buf;
