@@ -540,8 +540,35 @@ function build(){
   N.in=ac.createGain();N.hl=bq('lowpass',120,.7);N.hh=bq('highpass',100,.7);N.sh=ac.createWaveShaper();N.sh.curve=curve();N.sh.oversample='2x';N.hg=ac.createGain();s.connect(N.in);N.in.connect(N.low);N.in.connect(N.hl);N.hl.connect(N.sh);N.sh.connect(N.hh);N.hh.connect(N.hg);N.hg.connect(N.pre);N.low.connect(N.punch);N.punch.connect(N.mud);N.mud.connect(N.pres);N.pres.connect(N.air);N.air.connect(N.pre);N.pre.connect(N.comp);N.comp.connect(N.lim);
   N.clip=ac.createWaveShaper();N.clip.curve=softc(0);N.clip.oversample='2x';N.lim.connect(N.clip);N.clip.connect(N.an);N.clip.connect(N.dest);N.clip.connect(N.mon);N.mon.connect(ac.destination);
 }
+var P={buf:null,src:null,on:false,off:0,ct:0,r:1,rs:false,lr:0};
+function rateNow(){return(bypass&&!exporting)?1:$('spd').value/100}
+function isPlaying(){return(P.buf&&!exporting)?P.on:!v.paused}
+function durT(){return P.buf?P.buf.duration:(v.duration||0)}
+function curT(){
+  if(P.buf&&!exporting){if(!P.on)return P.off;return Math.min(P.buf.duration,P.off+(ac.currentTime-P.ct)*P.r)}
+  return v.currentTime}
+function upd(){
+  var d=durT()||1,t=curT();$('t0').textContent=fmt(t);
+  if(!seeking){$('sk').value=1000*t/d;fill($('sk'))}
+  if(exporting)$('bi').style.width=(40*t/d)+'%'}
+function loop(){cancelAnimationFrame(P.lr);P.lr=requestAnimationFrame(function(){if(!P.on)return;upd();loop()})}
+function bPlay(btn){
+  if(P.on||!P.buf||!ac)return;
+  if(btn&&P.off>=P.buf.duration-.05)P.off=0;
+  var s=ac.createBufferSource();s.buffer=P.buf;P.r=rateNow();s.playbackRate.value=P.r;s.connect(N.in);
+  s.onended=function(){if(P.src!==s)return;P.src=null;P.on=false;P.off=P.buf.duration;ui(false);upd();draw(true)};
+  P.src=s;P.ct=ac.currentTime;P.on=true;s.start(0,Math.min(P.off,Math.max(0,P.buf.duration-.001)));
+  ui(true);draw();loop()}
+function bStop(quiet){
+  if(!P.on)return;
+  P.off=curT();var s=P.src;P.src=null;P.on=false;
+  if(s){s.onended=null;try{s.stop()}catch(e){}try{s.disconnect()}catch(e){}}
+  if(!quiet)ui(false)}
 function setRate(){
-  var sp=$('spd').value/100,rt=(bypass&&!exporting)?1:sp;
+  var rt=rateNow();
+  if(P.buf&&!exporting){
+    if(P.on){P.off=curT();P.ct=ac.currentTime;P.src.playbackRate.value=rt}
+    P.r=rt;try{v.defaultPlaybackRate=1;v.playbackRate=1}catch(x){}return}
   try{v.defaultPlaybackRate=rt;v.playbackRate=rt;v.preservesPitch=false;v.webkitPreservesPitch=false;v.mozPreservesPitch=false}catch(x){}}
 function apply(){
   ['bass','clar','loud'].forEach(function(k){fill($(k));$(k+'o').textContent=$(k).value});
@@ -571,7 +598,7 @@ $('ab').textContent='Original';
 
 $('f').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];if(!f)return;
-  v.pause();if(v.src)URL.revokeObjectURL(v.src);
+  bStop(true);P.buf=null;P.off=0;v.pause();if(v.src)URL.revokeObjectURL(v.src);
   cur=f;name=f.name.replace(/\.[^.]+$/,'')||'audio';$('nm').textContent=f.name;
   if(!ac){try{build()}catch(x){}}
   var shown=false,pm=$('pmsg');pm.textContent='Loading '+f.name+'…';
@@ -584,19 +611,22 @@ $('f').addEventListener('change',function(e){
   v.onerror=function(){clearTimeout(tm);pm.textContent='This video could not be read. Try an MP4 or a shorter clip.'};
   var tm=setTimeout(function(){if(!shown)pm.textContent='Still loading… If nothing happens, this video format may not be supported. Try an MP4.'},6000);
   v.preload='auto';v.src=URL.createObjectURL(f);v.load();
+  if(ac&&f.size<250e6){f.arrayBuffer().then(dec).then(function(b){
+    if(cur!==f||!b||exporting)return;
+    var was=!v.paused,t=v.currentTime||0;if(was)v.pause();
+    P.buf=b;P.off=Math.min(t,b.duration);setRate();
+    if(was)bPlay();else upd()}).catch(function(){})}
 });
-$('chg').onclick=function(){v.pause();$('app').classList.add('hide');$('pick').classList.remove('hide');$('f').value=''};
+$('chg').onclick=function(){bStop();v.pause();$('app').classList.add('hide');$('pick').classList.remove('hide');$('f').value=''};
 
 function ui(p){$('ip').classList.toggle('hide',p);$('ia').classList.toggle('hide',!p);$('pl').setAttribute('aria-label',p?'Pause':'Play')}
-$('pl').onclick=function(){if(!ac)return;ac.resume();if(v.paused)v.play();else v.pause()};
+$('pl').onclick=function(){if(!ac)return;ac.resume();if(P.buf&&!exporting){if(P.on)bStop();else bPlay(true)}else{if(v.paused)v.play();else v.pause()}};
 v.onplay=function(){ui(true);setRate();draw()};v.onpause=function(){ui(false)};
-v.ontimeupdate=function(){
-  var d=v.duration||1;$('t0').textContent=fmt(v.currentTime);
-  if(!seeking){$('sk').value=1000*v.currentTime/d;fill($('sk'))}
-  if(exporting)$('bi').style.width=(40*v.currentTime/d)+'%'};
+v.ontimeupdate=function(){upd()};
 var seeking=false;
-$('sk').addEventListener('input',function(){seeking=true;fill($('sk'));if(v.duration)v.currentTime=v.duration*$('sk').value/1000;});
-$('sk').addEventListener('change',function(){seeking=false});
+$('sk').addEventListener('input',function(){seeking=true;fill($('sk'));var d=durT();if(!d)return;var t=d*$('sk').value/1000;
+  if(P.buf&&!exporting){if(P.on){bStop(true);P.rs=true}P.off=t;upd()}else v.currentTime=t});
+$('sk').addEventListener('change',function(){seeking=false;if(P.rs){P.rs=false;if(P.buf&&!exporting)bPlay()}});
 
 function draw(once){
   cancelAnimationFrame(raf);
@@ -607,7 +637,7 @@ function draw(once){
   for(var i=0;i<n;i++){var val=d[Math.floor(i*d.length*.7/n)]/255,bh=Math.max(6*r,val*h*.95),px=i*g+(g-bw)/2,py=(h-bh)/2;
     x.globalAlpha=.1+.5*val;x.shadowColor='rgba(255,255,255,.9)';x.shadowBlur=(10+28*val)*r;x.beginPath();if(x.roundRect)x.roundRect(px,py,bw,bh,bw/2);else x.rect(px,py,bw,bh);x.fill()}
   x.globalAlpha=1;
-  if(!v.paused&&!once)raf=requestAnimationFrame(function(){draw()})}
+  if(isPlaying()&&!once)raf=requestAnimationFrame(function(){draw()})}
 
 v.onended=function(){ui(false);if(exporting&&N.rec&&N.rec.state==='recording')N.rec.stop();draw(true)};
 
@@ -626,7 +656,7 @@ function render(buf){
   src.connect(lo);src.connect(hl);hl.connect(sh);sh.connect(hh);hh.connect(hg);hg.connect(pg);lo.connect(pn);pn.connect(mu);mu.connect(pr);pr.connect(ai);ai.connect(pg);pg.connect(cp);cp.connect(lm);var ck=oc.createWaveShaper();ck.curve=softc(l*1.6);ck.oversample='2x';lm.connect(ck);ck.connect(oc.destination);src.start();
   return new Promise(function(ok,no){oc.oncomplete=function(e){ok(e.renderedBuffer)};var p=oc.startRendering();if(p&&p.then)p.then(ok,no)})}
 function realtime(){return new Promise(function(ok,no){
-  exporting=true;bypass=false;$('ab').setAttribute('aria-pressed','false');$('ab').textContent='Original';apply();N.mon.gain.value=0;
+  bStop();exporting=true;bypass=false;$('ab').setAttribute('aria-pressed','false');$('ab').textContent='Original';apply();N.mon.gain.value=0;
   var mt=['audio/mp4','audio/webm;codecs=opus','audio/webm'].filter(function(t){return MediaRecorder.isTypeSupported(t)})[0]||'',ch=[];
   var rec=N.rec=new MediaRecorder(N.dest.stream,mt?{mimeType:mt}:{});
   rec.ondataavailable=function(e){if(e.data.size)ch.push(e.data)};
