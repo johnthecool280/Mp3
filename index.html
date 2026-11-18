@@ -438,6 +438,7 @@ body{background:transparent!important}
 .cname{text-align:center;font-weight:600;margin-top:2px}
 .chex{text-align:center;color:var(--mute);font-size:.85rem}
 .chint{text-align:center;color:var(--mute);font-size:.8rem;margin:10px 0 0}
+#spdn:empty{display:none}#spdn{margin-top:6px}
 .spdl{display:flex;justify-content:space-between;color:var(--mute);font-size:.8rem;margin:-2px 0 6px}
 </style></head><body><div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div><div class="wrap">
 <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -473,7 +474,7 @@ body{background:transparent!important}
     <div class="ctl"><div class="h"><label for="bass">Bass</label><output id="basso">0</output></div><input type="range" id="bass" min="0" max="100" value="0"><p>Adds weight and depth to the low end.</p></div>
     <div class="ctl"><div class="h"><label for="clar">Clarity</label><output id="claro">0</output></div><input type="range" id="clar" min="0" max="100" value="0"><p>Makes voices and details crisper.</p></div>
     <div class="ctl"><div class="h"><label for="loud">Loudness</label><output id="loudo">0</output></div><input type="range" id="loud" min="0" max="100" value="0"><p>Raises the volume and evens out quiet parts.</p></div>
-    <div class="ctl"><div class="h"><label for="spd">Speed</label><output id="spdo">1.00×</output></div><input type="range" id="spd" min="50" max="150" value="100" step="1"><div class="spdl" aria-hidden="true"><span>Slow</span><span>Speed</span></div><p>To increase the speed or slow down the speed</p></div>
+    <div class="ctl"><div class="h"><label for="spd">Speed</label><output id="spdo">1.00×</output></div><input type="range" id="spd" min="50" max="150" value="100" step="1"><div class="spdl" aria-hidden="true"><span>Slow</span><span>Speed</span></div><p>To increase the speed or slow down the speed</p><p id="spdn" role="status"></p></div>
     <div class="ab"><span>Hear the difference while playing</span><button class="btn soft" id="ab" aria-pressed="false">Original</button></div>
     </div></div>
   </div>
@@ -540,6 +541,69 @@ function build(){
   N.in=ac.createGain();N.hl=bq('lowpass',120,.7);N.hh=bq('highpass',100,.7);N.sh=ac.createWaveShaper();N.sh.curve=curve();N.sh.oversample='2x';N.hg=ac.createGain();s.connect(N.in);N.in.connect(N.low);N.in.connect(N.hl);N.hl.connect(N.sh);N.sh.connect(N.hh);N.hh.connect(N.hg);N.hg.connect(N.pre);N.low.connect(N.punch);N.punch.connect(N.mud);N.mud.connect(N.pres);N.pres.connect(N.air);N.air.connect(N.pre);N.pre.connect(N.comp);N.comp.connect(N.lim);
   N.clip=ac.createWaveShaper();N.clip.curve=softc(0);N.clip.oversample='2x';N.lim.connect(N.clip);N.clip.connect(N.an);N.clip.connect(N.dest);N.clip.connect(N.mon);N.mon.connect(ac.destination);
 }
+async function extractAAC(f){
+  var rd=async function(a,b){return new DataView(await f.slice(a,b).arrayBuffer())};
+  var pos=0,size=f.size,moov=null;
+  while(pos<size-8){
+    var h=await rd(pos,pos+16),sz=h.getUint32(0),ty=h.getUint32(4),hl=8;
+    if(sz===1){sz=h.getUint32(8)*4294967296+h.getUint32(12);hl=16}else if(sz===0)sz=size-pos;
+    if(ty===0x6d6f6f76){moov=[pos+hl,pos+sz];break}
+    if(sz<8)break;pos+=sz}
+  if(!moov)throw new Error('no moov');
+  var m=new Uint8Array(await f.slice(moov[0],moov[1]).arrayBuffer()),dv=new DataView(m.buffer);
+  function kids(a,b){var r=[],p=a;while(p+8<=b){var s=dv.getUint32(p),t=dv.getUint32(p+4),hl=8;if(s===1){s=dv.getUint32(p+8)*4294967296+dv.getUint32(p+12);hl=16}else if(s===0)s=b-p;if(s<8)break;r.push({t:t,a:p+hl,b:Math.min(b,p+s)});p+=s}return r}
+  function one(a,b,t){var k=kids(a,b);for(var i=0;i<k.length;i++)if(k[i].t===t)return k[i];return null}
+  var T=function(s){return(s.charCodeAt(0)<<24|s.charCodeAt(1)<<16|s.charCodeAt(2)<<8|s.charCodeAt(3))>>>0};
+  var stbl=null,i;
+  var traks=kids(0,m.length).filter(function(k){return k.t===T('trak')});
+  for(i=0;i<traks.length&&!stbl;i++){
+    var md=one(traks[i].a,traks[i].b,T('mdia'));if(!md)continue;
+    var hd=one(md.a,md.b,T('hdlr'));if(!hd||dv.getUint32(hd.a+8)!==T('soun'))continue;
+    var mi=one(md.a,md.b,T('minf'));if(!mi)continue;stbl=one(mi.a,mi.b,T('stbl'))}
+  if(!stbl)throw new Error('no audio');
+  var sd=one(stbl.a,stbl.b,T('stsd')),ent=sd.a+8,es=-1;
+  if(dv.getUint32(ent+4)!==T('mp4a'))throw new Error('not aac');
+  var eb=dv.getUint32(ent)+ent;
+  for(i=ent+8;i+4<=eb;i++)if(dv.getUint32(i)===T('esds')){es=i+4;break}
+  if(es<0)throw new Error('no esds');
+  var p=es+4;
+  function dlen(){var l=0,b,n=0;do{b=m[p++];l=(l<<7)|(b&127)}while(b&128&&++n<4);return l}
+  if(m[p++]!==3)throw new Error('esds');dlen();p+=2;var fl=m[p++];if(fl&128)p+=2;if(fl&64)p+=1+m[p];if(fl&32)p+=2;
+  if(m[p++]!==4)throw new Error('esds');dlen();p+=13;
+  if(m[p++]!==5)throw new Error('esds');dlen();
+  var b0=m[p],b1=m[p+1],b2=m[p+2],aot=b0>>3,fi=((b0&7)<<1)|(b1>>7),ch;
+  if(aot===31||fi===15)throw new Error('asc');
+  ch=(b1>>3)&15;
+  if(aot<1||aot>4||ch<1||ch>7)throw new Error('profile');
+  var stz=one(stbl.a,stbl.b,T('stsz')),ssc=one(stbl.a,stbl.b,T('stsc')),sco=one(stbl.a,stbl.b,T('stco')),big=false;
+  if(!sco){sco=one(stbl.a,stbl.b,T('co64'));big=true}
+  if(!stz||!ssc||!sco)throw new Error('tables');
+  var fixed=dv.getUint32(stz.a+4),ns=dv.getUint32(stz.a+8),sizes=new Uint32Array(ns);
+  for(i=0;i<ns;i++)sizes[i]=fixed||dv.getUint32(stz.a+12+4*i);
+  var nr=dv.getUint32(ssc.a+4),runs=[];
+  for(i=0;i<nr;i++)runs.push([dv.getUint32(ssc.a+8+12*i),dv.getUint32(ssc.a+12+12*i)]);
+  var nc=dv.getUint32(sco.a+4),chunks=[],si=0,ri=0;
+  for(i=0;i<nc&&si<ns;i++){
+    while(ri+1<nr&&runs[ri+1][0]<=i+1)ri++;
+    var off=big?dv.getUint32(sco.a+8+8*i)*4294967296+dv.getUint32(sco.a+12+8*i):dv.getUint32(sco.a+8+4*i);
+    var cnt=Math.min(runs[ri][1],ns-si),tot=0;for(var j=0;j<cnt;j++)tot+=sizes[si+j];
+    chunks.push({off:off,first:si,cnt:cnt,tot:tot});si+=cnt}
+  var parts=new Array(chunks.length),total=0;
+  for(i=0;i<chunks.length;i+=48){
+    await Promise.all(chunks.slice(i,i+48).map(async function(c,k){
+      var raw=new Uint8Array(await f.slice(c.off,c.off+c.tot).arrayBuffer()),outl=c.tot+7*c.cnt,out=new Uint8Array(outl),o=0,r=0;
+      for(var s=0;s<c.cnt;s++){
+        var n=sizes[c.first+s],fl2=n+7;
+        out[o]=255;out[o+1]=241;out[o+2]=((aot-1)<<6)|(fi<<2)|((ch>>2)&1);out[o+3]=((ch&3)<<6)|((fl2>>11)&3);out[o+4]=(fl2>>3)&255;out[o+5]=((fl2&7)<<5)|31;out[o+6]=252;
+        out.set(raw.subarray(r,r+n),o+7);o+=7+n;r+=n}
+      parts[i+k]=out}))}
+  for(i=0;i<parts.length;i++)total+=parts[i].length;
+  var res=new Uint8Array(total);var q=0;for(i=0;i<parts.length;i++){res.set(parts[i],q);q+=parts[i].length}
+  return res.buffer}
+async function loadBuf(f){
+  if(f.size<250e6){try{return await dec(await f.arrayBuffer())}catch(e){}}
+  return await dec(await extractAAC(f))}
+function spn(t){$('spdn').textContent=t}
 var P={buf:null,src:null,on:false,off:0,ct:0,r:1,rs:false,lr:0};
 function rateNow(){return(bypass&&!exporting)?1:$('spd').value/100}
 function isPlaying(){return(P.buf&&!exporting)?P.on:!v.paused}
@@ -565,7 +629,7 @@ function bStop(quiet){
   if(s){s.onended=null;try{s.stop()}catch(e){}try{s.disconnect()}catch(e){}}
   if(!quiet)ui(false)}
 function setRate(){
-  var rt=rateNow();
+  var rt=exporting?1:rateNow();
   if(P.buf&&!exporting){
     if(P.on){P.off=curT();P.ct=ac.currentTime;P.src.playbackRate.value=rt}
     P.r=rt;try{v.defaultPlaybackRate=1;v.playbackRate=1}catch(x){}return}
@@ -611,11 +675,12 @@ $('f').addEventListener('change',function(e){
   v.onerror=function(){clearTimeout(tm);pm.textContent='This video could not be read. Try an MP4 or a shorter clip.'};
   var tm=setTimeout(function(){if(!shown)pm.textContent='Still loading… If nothing happens, this video format may not be supported. Try an MP4.'},6000);
   v.preload='auto';v.src=URL.createObjectURL(f);v.load();
-  if(ac&&f.size<250e6){f.arrayBuffer().then(dec).then(function(b){
+  spn('');
+  if(ac){spn('Preparing smooth preview\u2026');loadBuf(f).then(function(b){
     if(cur!==f||!b||exporting)return;
     var was=!v.paused,t=v.currentTime||0;if(was)v.pause();
     P.buf=b;P.off=Math.min(t,b.duration);setRate();
-    if(was)bPlay();else upd()}).catch(function(){})}
+    spn('');if(was)bPlay();else upd()}).catch(function(){if(cur===f)spn('Smooth preview isn\u2019t available for this video, so slowing it down here may stutter.')})}
 });
 $('chg').onclick=function(){bStop();v.pause();$('app').classList.add('hide');$('pick').classList.remove('hide');$('f').value=''};
 
@@ -645,9 +710,9 @@ var cur=null,mp3=null;
 function bar(p){$('bi').style.width=p+'%'}
 function lock(on){$('go').disabled=$('pl').disabled=$('sk').disabled=on;$('go').textContent=on?'Converting…':'Convert';$('bar').classList.toggle('hide',!on)}
 function dec(ab){return new Promise(function(ok,no){var p=ac.decodeAudioData(ab,ok,no);if(p&&p.catch)p.catch(no)})}
-function render(buf){
-  var rate=$('spd').value/100,OC=window.OfflineAudioContext||window.webkitOfflineAudioContext,oc=new OC(Math.min(2,buf.numberOfChannels),Math.max(1,Math.ceil(buf.length/rate)),buf.sampleRate),src=oc.createBufferSource();src.buffer=buf;src.playbackRate.value=rate;
-  var b=$('bass').value/100,c=$('clar').value/100,l=$('loud').value/100;
+function render(buf,sp){
+  var rate=sp||$('spd').value/100,OC=window.OfflineAudioContext||window.webkitOfflineAudioContext,oc=new OC(Math.min(2,buf.numberOfChannels),Math.max(1,Math.ceil(buf.length/rate)),buf.sampleRate),src=oc.createBufferSource();src.buffer=buf;src.playbackRate.value=rate;
+  var b=$('bass').value/100,c=$('clar').value/100,l=$('loud').value/100;if(sp){b=c=l=0}
   var lo=bq('lowshelf',140,0,oc),pn=bq('peaking',70,1,oc),hl=bq('lowpass',120,.7,oc),hh=bq('highpass',100,.7,oc),sh=oc.createWaveShaper(),hg=oc.createGain(),mu=bq('peaking',320,1,oc),pr=bq('peaking',3200,.9,oc),ai=bq('highshelf',8000,0,oc);
   lo.gain.value=b*26;pn.gain.value=b*10;sh.curve=curve();sh.oversample='2x';hg.gain.value=b*1.5;mu.gain.value=-c*3;pr.gain.value=c*6;ai.gain.value=c*5;
   var pg=oc.createGain();pg.gain.value=Math.pow(10,l*18/20);
@@ -714,8 +779,8 @@ $('go').onclick=async function(){
   busy=true;lock(true);$('rs').classList.add('hide');bar(4);say('Converting…');ac.resume();
   try{
     var pcm=null;
-    if(cur.size<250e6){try{var raw=await dec(await cur.arrayBuffer());bar(12);pcm=await render(raw);bar(40)}catch(e){pcm=null}}
-    if(!pcm){if(!window.MediaRecorder)throw 0;say('Converting… this video needs real-time conversion. Keep this page open.');var rb=await realtime();pcm=await dec(await rb.arrayBuffer());bar(40)}
+    try{var raw=P.buf||await loadBuf(cur);bar(12);pcm=await render(raw);bar(40)}catch(e){pcm=null}
+    if(!pcm){if(!window.MediaRecorder)throw 0;say('Converting… this video needs real-time conversion. Keep this page open.');var rb=await realtime();pcm=await dec(await rb.arrayBuffer());var sp0=$('spd').value/100;if(Math.abs(sp0-1)>.001)pcm=await render(pcm,sp0);bar(40)}
     say('Encoding MP3…');
     var blob=await enc(pcm,function(p){bar(40+60*p)});
     if(coverBytes)blob=new Blob([id3(coverBytes),blob],{type:'audio/mpeg'});
