@@ -440,7 +440,74 @@ body{background:transparent!important}
 .chint{text-align:center;color:var(--mute);font-size:.8rem;margin:10px 0 0}
 #spdn:empty{display:none}#spdn{margin-top:6px}
 .spdl{display:flex;justify-content:space-between;color:var(--mute);font-size:.8rem;margin:-2px 0 6px}
-</style></head><body><div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div><div class="wrap">
+/* intro */
+#intro{position:fixed;inset:-1px;z-index:9999;background:#000;touch-action:none;overflow:hidden;-webkit-tap-highlight-color:transparent}
+#ixsvg{position:absolute;inset:0;width:100%;height:100%;display:none}
+#ixw{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;pointer-events:none}
+#ixt{display:inline-block;font-family:Sekuya,-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;font-weight:400;font-size:clamp(40px,14vw,84px);line-height:1;letter-spacing:.06em;color:#fff;opacity:0;text-shadow:0 0 28px rgba(255,255,255,.35);will-change:transform,opacity}
+.ixp{position:absolute;left:50%;top:50%;border-radius:50%;pointer-events:none;will-change:transform,opacity}
+</style></head><body><div id="intro" aria-hidden="true"><svg id="ixsvg" preserveAspectRatio="none"><path id="ixpath" fill="#000" fill-rule="evenodd" d=""/></svg><div id="ixw"><span id="ixt"></span></div></div>
+<script>
+(function(){
+var root=document.getElementById('intro');if(!root)return;
+var svg=document.getElementById('ixsvg'),path=document.getElementById('ixpath'),txt=document.getElementById('ixt');
+var WORD='DUN',BLACK=1000,FADE=1900,HOLD=250,POP=150,OPEN=1400;
+var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;
+var done=false,timers=[],raf=0,can=!!txt.animate;
+txt.textContent=WORD;
+try{if(document.fonts&&document.fonts.load)document.fonts.load('400 64px Sekuya')}catch(e){}
+function later(fn,ms){timers.push(setTimeout(fn,ms))}
+function stop(){timers.forEach(clearTimeout);timers=[];cancelAnimationFrame(raf)}
+function finish(){if(done)return;done=true;stop();if(root.parentNode)root.parentNode.removeChild(root)}
+function fadeOut(){if(done)return;stop();root.style.pointerEvents='none';root.style.transition='opacity .3s ease';root.style.opacity='0';later(finish,340)}
+root.addEventListener('pointerdown',fadeOut);
+if(reduce){later(fadeOut,250);return}
+later(function(){
+  if(can)txt.animate([{opacity:0,transform:'scale(.9)'},{opacity:1,transform:'scale(1.06)'}],{duration:FADE,easing:'cubic-bezier(.3,.1,.3,1)',fill:'forwards'});
+  else txt.style.opacity=1},BLACK);
+later(pop,BLACK+FADE+HOLD);
+function pop(){
+  var i,n=14;
+  if(can){
+    txt.animate([{opacity:1,transform:'scale(1.06)'},{opacity:1,transform:'scale(1.32)',offset:.55},{opacity:0,transform:'scale(1.55)'}],{duration:POP,easing:'ease-out',fill:'forwards'});
+    var ring=document.createElement('div');ring.className='ixp';
+    ring.style.cssText='width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid #fff;box-sizing:border-box';
+    root.appendChild(ring);
+    ring.animate([{transform:'scale(.3)',opacity:.75},{transform:'scale(3.6)',opacity:0}],{duration:560,easing:'cubic-bezier(.1,.7,.3,1)',fill:'forwards'});
+    for(i=0;i<n;i++){
+      var a=i/n*Math.PI*2+Math.random()*.4,d=70+Math.random()*90,sz=4+Math.random()*5,p=document.createElement('div');
+      p.className='ixp';p.style.cssText='width:'+sz+'px;height:'+sz+'px;margin:'+(-sz/2)+'px 0 0 '+(-sz/2)+'px;background:#fff';
+      root.appendChild(p);
+      p.animate([{transform:'translate(0,0) scale(1)',opacity:1},{transform:'translate('+Math.cos(a)*d+'px,'+Math.sin(a)*d+'px) scale(.2)',opacity:0}],{duration:520+Math.random()*180,easing:'cubic-bezier(.1,.8,.3,1)',fill:'forwards'});
+    }
+  }else txt.style.opacity=0;
+  later(open,60)}
+function ease(p){return p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2}
+function open(){
+  var w=window.innerWidth,h=window.innerHeight,cx=w/2,cy=h/2,hyp=Math.hypot(cx,cy),
+  AM=[.12,.09,.06,.04],K=[2,3,5,7],SP=[1.3,-1.7,2.1,-2.6],PH=[0,1,2,3].map(function(){return Math.random()*6.28}),
+  SUM=.31,M1=.22,R0=8,R1=(hyp+10)/(1-SUM*M1),PTS=44,t0=performance.now();
+  svg.setAttribute('viewBox','0 0 '+w+' '+h);
+  function blob(R,m,tm){
+    var P=[],i,j,th,r,s;
+    for(i=0;i<PTS;i++){th=i/PTS*6.2832;s=0;for(j=0;j<4;j++)s+=AM[j]*Math.sin(K[j]*th+PH[j]+SP[j]*tm);r=R*(1+m*s);P.push([cx+r*Math.cos(th),cy+r*Math.sin(th)])}
+    var d='M'+P[0][0].toFixed(1)+' '+P[0][1].toFixed(1);
+    for(i=0;i<PTS;i++){
+      var p0=P[(i+PTS-1)%PTS],p1=P[i],p2=P[(i+1)%PTS],p3=P[(i+2)%PTS];
+      d+='C'+(p1[0]+(p2[0]-p0[0])/6).toFixed(1)+' '+(p1[1]+(p2[1]-p0[1])/6).toFixed(1)+' '+(p2[0]-(p3[0]-p1[0])/6).toFixed(1)+' '+(p2[1]-(p3[1]-p1[1])/6).toFixed(1)+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1)}
+    return d+'Z'}
+  function frame(now){
+    if(done)return;
+    var tm=(now-t0)/1000,p=Math.min(1,(now-t0)/OPEN),R=R0+(R1-R0)*ease(p),m=1-(1-M1)*p;
+    path.setAttribute('d','M0 0H'+w+'V'+h+'H0Z'+blob(R,m,tm));
+    if(p>=1){finish();return}
+    raf=requestAnimationFrame(frame)}
+  path.setAttribute('d','M0 0H'+w+'V'+h+'H0Z'+blob(R0,1,0));
+  svg.style.display='block';root.style.background='transparent';
+  raf=requestAnimationFrame(frame)}
+})();
+</script>
+<div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div><div class="wrap">
 <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
 <h1>INSANITY</h1>
 
