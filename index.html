@@ -400,6 +400,10 @@ html{background:#05060b}
 body{background:transparent!important}
 .bgl{position:fixed;inset:0;z-index:-2;pointer-events:none;background:radial-gradient(60% 40% at 12% 8%,rgba(110,135,255,.38),transparent 70%),radial-gradient(50% 38% at 95% 28%,rgba(185,115,255,.3),transparent 70%),radial-gradient(65% 45% at 25% 98%,rgba(50,200,220,.28),transparent 70%),#05060b}
 #bgB{opacity:0}
+/* cover tint: landscape only */
+#bgC{z-index:-1;opacity:0;transition:opacity .8s ease;background:radial-gradient(60% 40% at 12% 8%,var(--cv1),transparent 70%),radial-gradient(50% 38% at 95% 28%,var(--cv2),transparent 70%),radial-gradient(65% 45% at 25% 98%,var(--cv3),transparent 70%),var(--cvb,#05060b)}
+@media (orientation:landscape) and (max-height:500px){body.cvtint #bgC{opacity:1}}
+@media(prefers-reduced-motion:reduce){#bgC{transition:none}}
 .wrap{position:relative;padding-top:46px}
 .gear{position:absolute;top:6px;right:18px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;cursor:pointer;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.25);transition:transform .15s,background .2s}
 .gear:before{content:"";position:absolute;inset:-6px}
@@ -608,7 +612,7 @@ function open(){
   raf=requestAnimationFrame(frame)}
 })();
 </script>
-<div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div><div class="wrap">
+<div class="bgl" id="bgA"></div><div class="bgl" id="bgB"></div><div class="bgl" id="bgC"></div><div class="wrap">
 <button class="gear" id="gear" aria-label="Settings" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
 <h1>DUN</h1>
 
@@ -939,7 +943,7 @@ function drawDots(){
   x.globalAlpha=1;
   if(pl)dr=requestAnimationFrame(drawDots)}
 try{mq.addEventListener('change',function(){drawDots();lyrSync()})}catch(e){}
-$('chg').onclick=function(){bStop();v.pause();$('app').classList.add('hide');$('pick').classList.remove('hide');$('f').value=''};
+$('chg').onclick=function(){bStop();v.pause();cvOff();$('app').classList.add('hide');$('pick').classList.remove('hide');$('f').value=''};
 
 function ui(p){$('vinyl').classList.toggle('spin',p);$('ip').classList.toggle('hide',p);$('ia').classList.toggle('hide',!p);$('pl').setAttribute('aria-label',p?'Pause':'Play');drawDots()}
 $('pl').onclick=function(){if(!ac)return;ac.resume();if(P.buf&&!exporting){if(P.on)bStop();else bPlay(true)}else{if(v.paused)v.play();else v.pause()}};
@@ -1026,7 +1030,45 @@ function setCover(file){
 $('cvf').addEventListener('change',function(e){setCover(e.target.files&&e.target.files[0]);e.target.value=''});
 $('cvx').onclick=function(){coverBytes=null;if(coverURL)URL.revokeObjectURL(coverURL);coverURL=null;$('cvp').removeAttribute('src');$('cvp').classList.add('hide');$('cvi').classList.remove('hide');$('cvx').classList.add('hide');$('cvs').textContent='Optional. Shows in your music player.';vlab()};
 var embURL=null;
-function vlab(){var u=coverURL||embURL;$('vlab').style.backgroundImage=u?'url("'+u+'")':''}
+function vlab(){var u=coverURL||embURL;$('vlab').style.backgroundImage=u?'url(\"'+u+'\")':'';cvTint(u)}
+/* landscape background follows the cover's overall color (only when one color clearly dominates) */
+var cvTok=0,cvTm=0;
+function cvOff(){cvTok++;clearTimeout(cvTm);document.body.classList.remove('cvtint')}
+function cvOn(h,sat){
+  var st=document.documentElement.style,b=document.body.classList,
+  set=function(){
+    st.setProperty('--cv1','hsla('+h+','+sat+'%,36%,.82)');
+    st.setProperty('--cv2','hsla('+((h+22)%360)+','+sat+'%,30%,.55)');
+    st.setProperty('--cv3','hsla('+((h+340)%360)+','+sat+'%,33%,.65)');
+    st.setProperty('--cvb','hsl('+h+','+Math.round(sat*.5)+'%,5%)');
+    b.add('cvtint')};
+  clearTimeout(cvTm);
+  if(b.contains('cvtint')){b.remove('cvtint');var t=cvTok;cvTm=setTimeout(function(){if(t===cvTok)set()},380)}else set()}
+function cvTint(u){
+  var my=++cvTok;clearTimeout(cvTm);
+  if(!u){document.body.classList.remove('cvtint');return}
+  var im=new Image();
+  im.onload=function(){
+    if(my!==cvTok)return;
+    var S=32,cv=document.createElement('canvas');cv.width=cv.height=S;
+    var x=cv.getContext('2d');x.drawImage(im,0,0,S,S);
+    var d;try{d=x.getImageData(0,0,S,S).data}catch(e){document.body.classList.remove('cvtint');return}
+    var BK=18,cnt=new Array(BK).fill(0),hx=new Array(BK).fill(0),hy=new Array(BK).fill(0),sa=new Array(BK).fill(0),tot=S*S;
+    for(var i=0;i<d.length;i+=4){
+      var r=d[i]/255,g=d[i+1]/255,b=d[i+2]/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),dl=mx-mn;
+      if(mx<.2||dl/mx<.25)continue; /* near-black or grey: not a color */
+      var h=mx===r?((g-b)/dl+6)%6:mx===g?(b-r)/dl+2:(r-g)/dl+4;h*=60;
+      var k=Math.floor(h/20)%BK;cnt[k]++;sa[k]+=dl/mx;hx[k]+=Math.cos(h*Math.PI/180);hy[k]+=Math.sin(h*Math.PI/180)}
+    /* strongest run of 3 neighbouring hues */
+    var best=-1,bs=0;
+    for(var j=0;j<BK;j++){var sm=cnt[j]+cnt[(j+1)%BK]+cnt[(j+BK-1)%BK];if(sm>bs){bs=sm;best=j}}
+    if(bs/tot<.4){document.body.classList.remove('cvtint');return}
+    var X=0,Y=0,Sa=0,C=0;
+    [(best+BK-1)%BK,best,(best+1)%BK].forEach(function(k){X+=hx[k];Y+=hy[k];Sa+=sa[k];C+=cnt[k]});
+    var hue=Math.round((Math.atan2(Y,X)*180/Math.PI+360)%360),sat=Math.round(Math.max(45,Math.min(88,Sa/C*100)));
+    cvOn(hue,sat)};
+  im.onerror=function(){if(my===cvTok)document.body.classList.remove('cvtint')};
+  im.src=u}
 function imgBlob(b){
   if(!b||b.length<8)return null;
   if(b[0]===255&&b[1]===216)return new Blob([b],{type:'image/jpeg'});
