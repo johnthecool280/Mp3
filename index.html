@@ -616,7 +616,7 @@ function open(){
   <small>MP4, MOV, MP3, M4A or any video or audio your device can play</small>
   <span class="btn">Select Video</span>
   <span id="pmsg" role="status" style="color:var(--mute);font-size:.9rem;min-height:1.3em"></span>
-  <input type="file" id="f" accept="video/*,audio/*,.mov,.mp4,.m4v,.webm,.mp3,.m4a,.aac,.wav" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0">
+  <input type="file" id="f" accept="video/*,audio/*,.mov,.mp4,.m4v,.webm,.mp3,.m4a,.aac,.wav,.aif,.aiff,.flac,.ogg,.opus" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0">
 </label>
 
 <video id="v" playsinline preload="auto" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"></video>
@@ -666,6 +666,7 @@ function open(){
       <div class="cvt"><b>Cover art</b><span id="cvs">Optional. Shows in your music player.</span></div>
       <button class="btn soft hide" id="cvx">Remove</button>
     </div>
+    <div class="rn"><label for="ar">Artist name</label><input type="text" id="ar" placeholder="Artist" autocomplete="off" autocapitalize="words" spellcheck="false"></div>
     <div class="rn"><label for="rn">File name</label><input type="text" id="rn" placeholder="Rename file" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
     <button class="btn wide" id="go">Convert</button>
     <div class="bar hide" id="bar"><i id="bi"></i></div>
@@ -842,14 +843,22 @@ $('f').addEventListener('change',function(e){
   bStop(true);P.buf=null;P.off=0;v.pause();if(v.src)URL.revokeObjectURL(v.src);
   cur=f;name=f.name.replace(/\.[^.]+$/,'')||'audio';$('nm').textContent=f.name;origName=name;$('rn').value=name;lyrSet([],'');lyrPanel(true);$('lq').value=lyrQuery(name);
   if(embURL){URL.revokeObjectURL(embURL);embURL=null}vlab();
-  embCover(f).then(function(b){if(cur!==f||!b)return;embURL=URL.createObjectURL(b);vlab()}).catch(function(){});
+  TG={title:'',artist:'',album:'',cover:null};$('ar').value='';
+  readTags(f).then(function(T){
+    if(cur!==f)return;TG=T;
+    if(T.cover){embURL=URL.createObjectURL(T.cover);vlab()}
+    if(T.artist)$('ar').value=T.artist;
+    var ln=T.sylt&&T.sylt.length?T.sylt:(T.lyr&&/\[\d+:\d+/.test(T.lyr)?lrcParse(T.lyr):[]);
+    if(ln.length){lyrSet(ln,'');LY.emb=true;return}
+    if(T.artist&&T.title){$('lq').value=T.artist+' '+T.title;if(shown)lyrFind($('lq').value,durT(),false)}
+  }).catch(function(){});
   if(!ac){try{build()}catch(x){}}
   var shown=false,pm=$('pmsg');pm.textContent='Loading '+f.name+'…';
   function ready(){
     if(shown||!(v.duration>0))return;shown=true;clearTimeout(tm);pm.textContent='';
     var d=isFinite(v.duration)?v.duration:0;
     $('du').textContent=fmt(d);$('t1').textContent=fmt(d);
-    $('pick').classList.add('hide');$('app').classList.remove('hide');$('rs').classList.add('hide');$('sk').value=0;fill($('sk'));say('');apply();draw(true);lyrFind($('lq').value,d,false);drawDots()}
+    $('pick').classList.add('hide');$('app').classList.remove('hide');$('rs').classList.add('hide');$('sk').value=0;fill($('sk'));say('');apply();draw(true);if(!LY.emb)lyrFind($('lq').value,d,false);drawDots()}
   v.onloadedmetadata=v.onloadeddata=v.oncanplay=ready;
   v.onerror=function(){clearTimeout(tm);pm.textContent='This file could not be read. Try an MP4, MP3 or M4A, or a shorter clip.'};
   var tm=setTimeout(function(){if(!shown)pm.textContent='Still loading… If nothing happens, this format may not be supported. Try an MP4, MP3 or M4A.'},6000);
@@ -862,7 +871,7 @@ $('f').addEventListener('change',function(e){
     spn('');if(was)bPlay();else upd()}).catch(function(){if(cur===f)spn('Smooth preview isn\u2019t available for this video, so slowing it down here may stutter.')})}
 });
 /* ---- landscape stage: synced lyrics + dots ---- */
-var origName='audio',LY={lines:[],idx:-2,tok:0},lyEl=[$('l0'),$('l1'),$('l2')],dr=0;
+var LOFF=-.25,origName='audio',LY={lines:[],idx:-2,tok:0,emb:false},lyEl=[$('l0'),$('l1'),$('l2')],dr=0;
 var mq=window.matchMedia('(orientation:landscape) and (max-height:500px)');
 function lyrQuery(n){return n.replace(/[\[(].*?[\])]/g,' ').replace(/[_.]+/g,' ').replace(/\b(official|music|video|lyrics?|audio|hd|hq|4k|visuali[sz]er|explicit)\b/gi,' ').replace(/\s+/g,' ').trim()}
 function lrcParse(t){
@@ -880,11 +889,11 @@ function lyrShow(i){
   var b=$('lyr');b.classList.remove('nudge');void b.offsetWidth;b.classList.add('nudge')}
 function lyrSync(){
   var L=LY.lines;if(!L.length)return;
-  var t=curT()+.2,lo=0,hi=L.length-1,i=-1;
+  var t=curT()+LOFF,lo=0,hi=L.length-1,i=-1;
   while(lo<=hi){var m=(lo+hi)>>1;if(L[m].t<=t){i=m;lo=m+1}else hi=m-1}
   if(i!==LY.idx){LY.idx=i;lyrShow(i)}}
 function lyrSet(lines,msg){
-  LY.lines=lines;LY.idx=-2;LY.tok++;
+  LY.lines=lines;LY.idx=-2;LY.tok++;LY.emb=false;
   lyEl.forEach(function(e){e.textContent=''});
   $('lst').textContent=msg||'';
   if(lines.length){lyrPanel(false);lyrSync()}}
@@ -952,7 +961,7 @@ function draw(once){
 
 v.onended=function(){ui(false);if(exporting&&N.rec&&N.rec.state==='recording')N.rec.stop();draw(true)};
 
-var cur=null,mp3=null;
+var cur=null,mp3=null,TG={title:'',artist:'',album:'',cover:null};
 function bar(p){$('bi').style.width=p+'%'}
 function lock(on){$('go').disabled=$('pl').disabled=$('sk').disabled=on;$('go').textContent=on?'Converting…':'Convert';$('bar').classList.toggle('hide',!on)}
 function dec(ab){return new Promise(function(ok,no){var p=ac.decodeAudioData(ab,ok,no);if(p&&p.catch)p.catch(no)})}
@@ -1021,47 +1030,110 @@ function imgBlob(b){
   if(b[0]===255&&b[1]===216)return new Blob([b],{type:'image/jpeg'});
   if(b[0]===137&&b[1]===80&&b[2]===78&&b[3]===71)return new Blob([b],{type:'image/png'});
   return null}
-async function embCover(f){
-  var head=new Uint8Array(await f.slice(0,10).arrayBuffer());
-  if(head[0]===73&&head[1]===68&&head[2]===51){
-    var ver=head[3],sz=(head[6]<<21)|(head[7]<<14)|(head[8]<<7)|head[9];
-    if(ver<3||sz<=0||sz>30e6)return null;
-    var t=new Uint8Array(await f.slice(10,10+sz).arrayBuffer()),p=0;
-    if(head[5]&64){p=ver===4?((t[0]<<21)|(t[1]<<14)|(t[2]<<7)|t[3]):(((t[0]<<24)|(t[1]<<16)|(t[2]<<8)|t[3])+4)}
-    while(p+10<=t.length&&t[p]){
-      var id=String.fromCharCode(t[p],t[p+1],t[p+2],t[p+3]),
-      fs=ver===4?((t[p+4]<<21)|(t[p+5]<<14)|(t[p+6]<<7)|t[p+7]):(t[p+4]*16777216+(t[p+5]<<16)+(t[p+6]<<8)+t[p+7]);
-      if(fs<=0||p+10+fs>t.length)break;
-      if(id==='APIC'){
-        var e=p+10+fs,q=p+10,enc=t[q++];
-        while(q<e&&t[q]!==0)q++;q+=2;
-        if(enc===1||enc===2){while(q+1<e&&!(t[q]===0&&t[q+1]===0))q+=2;q+=2}else{while(q<e&&t[q]!==0)q++;q++}
-        var bl=imgBlob(t.subarray(q,e));if(bl)return bl}
-      p+=10+fs}
-    return null}
-  /* MP4 / M4A: moov > udta > meta > ilst > covr > data */
+function tx(b,s,e,enc){
+  var a=b.subarray(s,e);
+  try{
+    if(enc===1){var le=true,o=0;if(a[0]===254&&a[1]===255){le=false;o=2}else if(a[0]===255&&a[1]===254)o=2;return new TextDecoder(le?'utf-16le':'utf-16be').decode(a.subarray(o)).replace(/\0+$/,'')}
+    if(enc===2)return new TextDecoder('utf-16be').decode(a).replace(/\0+$/,'');
+    if(enc===3)return new TextDecoder('utf-8').decode(a).replace(/\0+$/,'');
+    try{return new TextDecoder('utf-8',{fatal:true}).decode(a).replace(/\0+$/,'')}catch(x){return new TextDecoder('iso-8859-1').decode(a).replace(/\0+$/,'')}
+  }catch(x){return ''}}
+function zt(b,p,e,enc){if(enc===1||enc===2){while(p+1<e&&!(b[p]===0&&b[p+1]===0))p+=2;return p}while(p<e&&b[p]!==0)p++;return p}
+function unsync(a){var o=[],i;for(i=0;i<a.length;i++){o.push(a[i]);if(a[i]===255&&a[i+1]===0)i++}return Uint8Array.from(o)}
+function id3Parse(t){
+  var R={title:'',artist:'',album:'',lyr:'',sylt:null,cover:null};
+  if(t[0]!==73||t[1]!==68||t[2]!==51)return R;
+  var ver=t[3],fl=t[5];if(ver<2||ver>4)return R;
+  if((fl&128)&&ver<4)t=cat(t.subarray(0,10),unsync(t.subarray(10)));
+  var e=t.length,p=10,hl=ver===2?6:10;
+  if((fl&64)&&ver>2){p+=ver===4?((t[10]<<21)|(t[11]<<14)|(t[12]<<7)|t[13]):((t[10]<<24|t[11]<<16|t[12]<<8|t[13])+4)}
+  while(p+hl<=e&&t[p]){
+    var id,fs,ff=0;
+    if(ver===2){id=String.fromCharCode(t[p],t[p+1],t[p+2]);fs=(t[p+3]<<16)|(t[p+4]<<8)|t[p+5]}
+    else{id=String.fromCharCode(t[p],t[p+1],t[p+2],t[p+3]);fs=ver===4?((t[p+4]<<21)|(t[p+5]<<14)|(t[p+6]<<7)|t[p+7]):(t[p+4]*16777216+(t[p+5]<<16)+(t[p+6]<<8)+t[p+7]);ff=t[p+9]}
+    var s0=p+hl,en=s0+fs;p=en;
+    if(fs<=0||en>t.length)break;
+    var b=t.subarray(s0,en);
+    if(ver===3&&(ff&0xC0))continue;
+    if(ver===4){if(ff&2)b=unsync(b);if(ff&1)b=b.subarray(4);if(ff&0x0C)continue}
+    var enc=b[0],w=(enc===1||enc===2)?2:1,q,z;
+    if(id==='TIT2'||id==='TT2'){R.title=R.title||tx(b,1,b.length,enc).split('\0')[0].trim()}
+    else if(id==='TPE1'||id==='TP1'){R.artist=R.artist||tx(b,1,b.length,enc).split('\0')[0].trim()}
+    else if(id==='TALB'||id==='TAL'){R.album=R.album||tx(b,1,b.length,enc).split('\0')[0].trim()}
+    else if(id==='USLT'||id==='ULT'){q=4;z=zt(b,q,b.length,enc);q=z+w;if(!R.lyr)R.lyr=tx(b,q,b.length,enc)}
+    else if((id==='SYLT'||id==='SLT')&&!R.sylt&&b[4]===2){
+      q=6;z=zt(b,q,b.length,enc);q=z+w;var L=[];
+      while(q<b.length){z=zt(b,q,b.length,enc);var x=tx(b,q,z,enc).replace(/^[\r\n]+|[\r\n]+$/g,'');q=z+w;if(q+4>b.length)break;
+        L.push({t:(b[q]*16777216+(b[q+1]<<16)+(b[q+2]<<8)+b[q+3])/1000+LOFF,x:x||'\u266a'});q+=4}
+      if(L.length)R.sylt=L.sort(function(a,c){return a.t-c.t})}
+    else if((id==='APIC'||id==='PIC')&&!R.cover){
+      q=1;if(ver===2)q+=3;else{while(q<b.length&&b[q])q++;q++}
+      q++;z=zt(b,q,b.length,enc);q=z+w;R.cover=imgBlob(b.subarray(q))}
+  }
+  return R}
+async function riffID3(f,head){
+  var wav=head[0]===82&&head[1]===73&&head[2]===70&&head[3]===70,aif=head[0]===70&&head[1]===79&&head[2]===82&&head[3]===77;
+  if(!wav&&!aif)return null;
+  var pos=12,n=0;
+  while(pos+8<=f.size&&n++<300){
+    var h=new DataView(await f.slice(pos,pos+8).arrayBuffer()),id=String.fromCharCode(h.getUint8(0),h.getUint8(1),h.getUint8(2),h.getUint8(3)),z=h.getUint32(4,wav);
+    if(id.toLowerCase()==='id3 ')return new Uint8Array(await f.slice(pos+8,pos+8+Math.min(z,60e6)).arrayBuffer());
+    pos+=8+z+(z&1)}
+  return null}
+async function mp4Tags(f,R){
   var pos=0,size=f.size,mo=null;
   while(pos<size-8){
     var h=new DataView(await f.slice(pos,pos+16).arrayBuffer()),z=h.getUint32(0),ty=h.getUint32(4),hl=8;
     if(z===1&&h.byteLength>=16){z=h.getUint32(8)*4294967296+h.getUint32(12);hl=16}else if(z===0)z=size-pos;
     if(ty===0x6d6f6f76){mo=[pos+hl,pos+z];break}
     if(z<8)break;pos+=z}
-  if(!mo||mo[1]-mo[0]>60e6)return null;
+  if(!mo||mo[1]-mo[0]>60e6)return;
   var m=new Uint8Array(await f.slice(mo[0],mo[1]).arrayBuffer()),dv=new DataView(m.buffer);
   function kids(a,b){var r=[],x=a;while(x+8<=b){var sz2=dv.getUint32(x),t2=dv.getUint32(x+4),hl2=8;if(sz2===1){sz2=dv.getUint32(x+8)*4294967296+dv.getUint32(x+12);hl2=16}else if(sz2===0)sz2=b-x;if(sz2<8)break;r.push({t:t2,a:x+hl2,b:Math.min(b,x+sz2)});x+=sz2}return r}
   function T4(s2){return(s2.charCodeAt(0)<<24|s2.charCodeAt(1)<<16|s2.charCodeAt(2)<<8|s2.charCodeAt(3))>>>0}
   function one(a,b,n){var k=kids(a,b);for(var i=0;i<k.length;i++)if(k[i].t===T4(n))return k[i];return null}
-  var u=one(0,m.length,'udta');if(!u)return null;
-  var me=one(u.a,u.b,'meta');if(!me)return null;
-  var il=one(me.a+4,me.b,'ilst');if(!il)return null;
-  var cv=one(il.a,il.b,'covr');if(!cv)return null;
-  var da=one(cv.a,cv.b,'data');if(!da)return null;
-  return imgBlob(m.subarray(da.a+8,da.b))}
-function id3(img){
-  var mime=[105,109,97,103,101,47,106,112,101,103,0],bl=1+mime.length+1+1+img.length,tl=10+bl,t=new Uint8Array(10+tl),o=20;
-  t.set([73,68,51,3,0,0],0);t[6]=(tl>>21)&127;t[7]=(tl>>14)&127;t[8]=(tl>>7)&127;t[9]=tl&127;
-  t.set([65,80,73,67],10);t[14]=(bl>>>24)&255;t[15]=(bl>>16)&255;t[16]=(bl>>8)&255;t[17]=bl&255;
-  t[o++]=0;t.set(mime,o);o+=mime.length;t[o++]=3;t[o++]=0;t.set(img,o);return t}
+  var u=one(0,m.length,'udta');if(!u)return;
+  var me=one(u.a,u.b,'meta');if(!me)return;
+  var il=one(me.a+4,me.b,'ilst');if(!il)return;
+  var K={'\xa9nam':'title','\xa9ART':'artist','aART':'artist','\xa9alb':'album','\xa9lyr':'lyr'};
+  kids(il.a,il.b).forEach(function(k){
+    var da=one(k.a,k.b,'data');if(!da)return;
+    if(k.t===T4('covr')){if(!R.cover)R.cover=imgBlob(m.subarray(da.a+8,da.b));return}
+    for(var nm in K)if(k.t===T4(nm)){if(!R[K[nm]])R[K[nm]]=tx(m,da.a+8,da.b,3).trim()}})}
+async function readTags(f){
+  var R={title:'',artist:'',album:'',lyr:'',sylt:null,cover:null},t=null;
+  try{
+    var head=new Uint8Array(await f.slice(0,12).arrayBuffer());
+    if(head[0]===73&&head[1]===68&&head[2]===51){var sz=(head[6]<<21)|(head[7]<<14)|(head[8]<<7)|head[9];if(sz>0&&sz<60e6)t=new Uint8Array(await f.slice(0,10+sz).arrayBuffer())}
+    else t=await riffID3(f,head);
+    if(t)R=id3Parse(t);
+    if(!R.title&&!R.artist&&f.size>128){
+      var tl=new Uint8Array(await f.slice(f.size-128).arrayBuffer());
+      if(tl[0]===84&&tl[1]===65&&tl[2]===71){var L1=function(a,b){return new TextDecoder('iso-8859-1').decode(tl.subarray(a,b)).replace(/[\0 ]+$/,'')};R.title=L1(3,33);R.artist=L1(33,63);R.album=L1(63,93)}}
+    if(!t&&!R.title&&!R.artist&&!R.cover)await mp4Tags(f,R);
+  }catch(e){}
+  return R}
+function cat(){var a=[].slice.call(arguments),l=0,p=0;a.forEach(function(x){l+=x.length});var o=new Uint8Array(l);a.forEach(function(x){o.set(x,p);p+=x.length});return o}
+function u16(s){var a=new Uint8Array(2+s.length*2);a[0]=255;a[1]=254;for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);a[2+i*2]=c&255;a[3+i*2]=c>>8}return a}
+function u16t(s){return cat(u16(s),new Uint8Array(2))}
+function frm(id,body){var h=new Uint8Array(10),n=body.length;for(var i=0;i<4;i++)h[i]=id.charCodeAt(i);h[4]=(n>>>24)&255;h[5]=(n>>16)&255;h[6]=(n>>8)&255;h[7]=n&255;return cat(h,body)}
+function id3(o){
+  var f=[],E=function(x){return cat(Uint8Array.of(1),u16t(x))},lg=Uint8Array.of(101,110,103);
+  if(o.title)f.push(frm('TIT2',E(o.title)));
+  if(o.artist)f.push(frm('TPE1',E(o.artist)));
+  if(o.album)f.push(frm('TALB',E(o.album)));
+  if(o.cover){
+    var png=o.cover[0]===137,mime=Array.from(png?'image/png':'image/jpeg').map(function(c){return c.charCodeAt(0)});
+    f.push(frm('APIC',cat(Uint8Array.of(0),Uint8Array.from(mime),Uint8Array.of(0,3,0),o.cover)))}
+  if(o.lines&&o.lines.length){
+    var plain=o.lines.map(function(l){return l.x==='\u266a'?'':l.x}).join('\n');
+    f.push(frm('USLT',cat(Uint8Array.of(1),lg,u16t(''),u16t(plain))));
+    var sy=[Uint8Array.of(1),lg,Uint8Array.of(2,1),u16t('')];
+    o.lines.forEach(function(l){var ms=Math.max(0,Math.round(l.t*1000));sy.push(u16t(l.x),Uint8Array.of((ms>>>24)&255,(ms>>16)&255,(ms>>8)&255,ms&255))});
+    f.push(frm('SYLT',cat.apply(null,sy)))}
+  if(!f.length)return null;
+  var body=cat.apply(null,f),n=body.length,h=Uint8Array.of(73,68,51,3,0,0,(n>>21)&127,(n>>14)&127,(n>>7)&127,n&127);
+  return cat(h,body)}
 $('go').onclick=async function(){
   if(busy||!ac||!cur)return;
   if(typeof lamejs==='undefined'){say('The MP3 encoder did not load. Check your connection and reload the page.');return}
@@ -1072,11 +1144,13 @@ $('go').onclick=async function(){
     if(!pcm){if(!window.MediaRecorder)throw 0;say('Converting… this video needs real-time conversion. Keep this page open.');var rb=await realtime();pcm=await dec(await rb.arrayBuffer());var sp0=$('spd').value/100;if(Math.abs(sp0-1)>.001)pcm=await render(pcm,sp0);bar(40)}
     say('Encoding MP3…');
     var blob=await enc(pcm,function(p){bar(40+60*p)});
-    if(coverBytes)blob=new Blob([id3(coverBytes),blob],{type:'audio/mpeg'});
+    var rt=$('spd').value/100,ly=LY.lines.map(function(l){return{t:(l.t-LOFF)/rt,x:l.x}}),cb=coverBytes||(TG.cover?new Uint8Array(await TG.cover.arrayBuffer()):null),
+      tg=id3({title:(name!==origName?name:(TG.title||name)),artist:$('ar').value.trim(),album:TG.album,cover:cb,lines:ly});
+    if(tg)blob=new Blob([tg,blob],{type:'audio/mpeg'});
     mp3=blob;$('ra').src=URL.createObjectURL(blob);
     var file=new File([blob],name+'.mp3',{type:'audio/mpeg'});mp3.file=file;
     var can=false;try{can=!!(navigator.canShare&&navigator.canShare({files:[file]}))}catch(e){}
-    $('sv').classList.remove('hide');$('rs').classList.remove('hide');bar(100);say('Done. Your MP3 is ready.');
+    $('sv').classList.remove('hide');$('rs').classList.remove('hide');bar(100);say(LY.lines.length?'Done. Your MP3 is ready, with its lyrics saved inside.':'Done. Your MP3 is ready.');
   }catch(e){say('Conversion failed. Try a different video or a shorter one.')}
   busy=false;exporting=false;lock(false);apply()};
 function dlk(blob,fn){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fn;document.body.appendChild(a);a.click();a.remove();say('Saved to your downloads.')}
